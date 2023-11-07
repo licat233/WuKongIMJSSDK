@@ -109,7 +109,7 @@ export class ConnectManager {
 
     connectWithAddr(addr: string) {
         this.status = ConnectStatus.Connecting;
-        this.ws = new WKWebsocket(addr,WKSDK.shared().config.platform);
+        this.ws = new WKWebsocket(addr, WKSDK.shared().config.platform);
         const self = this;
         this.ws.onopen(() => {
             console.log('onopen...');
@@ -142,7 +142,7 @@ export class ConnectManager {
                 }
             })
         });
-        this.ws.onclose((e)=>{
+        this.ws.onclose((e) => {
             console.log('连接关闭！', e);
             if (this.status !== ConnectStatus.Disconnect) {
                 this.status = ConnectStatus.Disconnect;
@@ -153,7 +153,7 @@ export class ConnectManager {
                 this.reConnect();
             }
         })
-        this.ws.onerror((e)=>{
+        this.ws.onerror((e) => {
             console.log('连接出错！', e);
             if (this.status !== ConnectStatus.Disconnect) {
                 this.status = ConnectStatus.Disconnect;
@@ -343,7 +343,7 @@ export class ConnectManager {
 
         } else if (p.packetType === PacketType.SUBACK) { // 订阅回执
             const subackPacket = (p as SubackPacket)
-            console.log("订阅回执-->",subackPacket.action)
+            console.log("订阅回执-->", subackPacket.action)
             WKSDK.shared().channelManager.handleSuback(subackPacket)
         }
 
@@ -353,18 +353,36 @@ export class ConnectManager {
 
     sendPing() {
         this.pingRetryCount++;
-        this.sendPacket(new PingPacket())
+        //使用trycatch捕获错误，不能让页面直接报红码
+        try {
+            this.sendPacket(new PingPacket())
+        } catch (error: any) {
+            console.log("心跳失败: ", error.message)
+            //当页面恢复时，进行重连
+            if (!window.document.hidden) {
+                this.reConnect()
+            }
+        }
     }
 
+    // 外部调用程序需要做错误捕获，trycatch或者promise处理，所以这里需要抛出具体错误
     sendPacket(p: Packet) {
-        // if (this.connected()) {
-        //     this.ws?.send(this.getProto().encode(p))
-        // } else {
-        //     console.log("发送消息失败，连接已断开！")
-        //     this.reConnect()
-        // }
-        this.ws?.send(this.getProto().encode(p))
-
+        if (!this.ws) throw new Error("ws未初始化")
+        if (!this.connected()) {
+            switch (this.status) {
+                case 0:
+                    throw new Error("ws未连接");
+                case 1:
+                    break;
+                case 2:
+                    throw new Error("ws正在关闭连接");
+                case 3:
+                    throw new Error("ws已经关闭连接或连接无法建立");
+                default:
+                    throw new Error("ws状态异常:" + this.status);
+            }
+        }
+        this.ws.send(this.getProto().encode(p))
     }
 
     getProto(): IProto {
@@ -405,4 +423,3 @@ export class ConnectManager {
         this.ws?.close();
     }
 }
-
