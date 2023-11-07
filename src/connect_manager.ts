@@ -372,12 +372,15 @@ export class ConnectManager {
             switch (this.status) {
                 case 0:
                     throw new Error("ws未连接");
+                case 1:
+                    break;
                 case 2:
                     throw new Error("ws正在关闭连接");
                 case 3:
                     throw new Error("ws已经关闭连接或连接无法建立");
+                default:
+                    throw new Error("ws状态异常:" + this.status);
             }
-            return
         }
         this.ws.send(this.getProto().encode(p))
     }
